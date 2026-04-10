@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Driver Drowsiness Detection System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            max-width: 1000px;
+            width: 100%;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #000;
+            margin-bottom: 20px;
+        }
+
+        #video {
+            width: 100%;
+            height: auto;
+            display: block;
+            transform: scaleX(-1); /* Mirror effect */
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            transform: scaleX(-1); /* Mirror effect */
+        }
+
+        .status-panel {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .status-label {
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .status-value {
+            font-size: 2rem;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .status-value.awake {
+            background: #4caf50;
+            color: white;
+        }
+
+        .status-value.drowsy {
+            background: #ff9800;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+
+        .status-value.critical {
+            background: #f44336;
+            color: white;
+            animation: pulse 0.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #startBtn {
+            background: #4caf50;
+            color: white;
+        }
+
+        #startBtn:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+
+        #stopBtn {
+            background: #f44336;
+            color: white;
+        }
+
+        #stopBtn:hover {
+            background: #da190b;
+            transform: scale(1.05);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .alert-area {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+        }
+
+        .alert-area.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        .alert-area.warning {
+            background: #ff9800;
+            color: white;
+        }
+
+        .alert-area.danger {
+            background: #f44336;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .info {
+            margin-top: 20px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            color: #1976d2;
+            text-align: right
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 1.3rem;
+            }
+            
+            .status-value {
+                font-size: 1.3rem;
+            }
+            
+            .metric-value {
+                font-size: 1.1rem;
+            }
+            
+            button {
+                padding: 10px 20px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mil Dvr Drowsiness Detection Sys</h1>
+        <!--div class="subtitle">Real-time monitoring using AI | Keep your eyes on the road</div-->
+        
+        <div class="video-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div class="status-panel">
+            <!--div class="status-label">Status</div-->
+            <div class="status-value awake" id="statusText">ALERTNESS STATE</div>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric-card">
+                <div class="metric-label">Left Eye EAR</div>
+                <div class="metric-value" id="leftEAR">0.00</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Right Eye EAR</div>
+                <div class="metric-value" id="rightEAR">0.00</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Average EAR</div>
+                <div class="metric-value" id="avgEAR">0.00</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Closed Frames</div>
+                <div class="metric-value" id="counter">0</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn">▶ Start Detection</button>
+            <button id="stopBtn" disabled>⏹ Stop Detection</button>
+        </div>
+        
+        <div id="alertBox" class="alert-area"></div>
+        
+        <!--div class="info">
+            💡 How it works: The system detects your face and calculates Eye Aspect Ratio (EAR). 
+            If your eyes remain closed for more than 2 seconds, an alert will trigger.
+            For best results, ensure good lighting and face the camera directly.
+        </div-->
+        <div class="info">
+            8 SIG BN || 24 INF DIV
+        </div>
+
+    </div>
+
+    <!-- MediaPipe Face Detection Library -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    
+    <script>
+        // Configuration parameters
+        const CONFIG = {
+            EAR_THRESHOLD: 0.22,       // Threshold for eye closure (below this = closed)
+            FRAME_THRESHOLD: 30,       // Number of consecutive frames before alert (approx 1 second at 30fps)
+            ALERT_SOUND_VOLUME: 1,     // Alert volume (0 to 1)
+        };
+        
+        // DOM Elements
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusText = document.getElementById('statusText');
+        const leftEarSpan = document.getElementById('leftEAR');
+        const rightEarSpan = document.getElementById('rightEAR');
+        const avgEarSpan = document.getElementById('avgEAR');
+        const counterSpan = document.getElementById('counter');
+        const alertBox = document.getElementById('alertBox');
+        
+        // State variables
+        let faceMesh = null;
+        let camera = null;
+        let isRunning = false;
+        let closedFrames = 0;
+        let alertPlaying = false;
+        let alertTimeout = null;
+        
+        // Audio context for beep sound (no external files needed)
+        let audioContext = null;
+        
+        // Helper function to calculate Eye Aspect Ratio (EAR)
+        // EAR formula: (||p2-p6|| + ||p3-p5||) / (2 * ||p1-p4||)
+        function calculateEAR(eyeLandmarks) {
+            // eyeLandmarks should contain 6 points around the eye
+            // p1 to p6 in order around the eye
+            if (eyeLandmarks.length !== 6) return 0;
+            
+            // Calculate vertical distances
+            const vertical1 = Math.hypot(
+                eyeLandmarks[1].x - eyeLandmarks[5].x,
+                eyeLandmarks[1].y - eyeLandmarks[5].y
+            );
+            const vertical2 = Math.hypot(
+                eyeLandmarks[2].x - eyeLandmarks[4].x,
+                eyeLandmarks[2].y - eyeLandmarks[4].y
+            );
+            
+            // Calculate horizontal distance
+            const horizontal = Math.hypot(
+                eyeLandmarks[0].x - eyeLandmarks[3].x,
+                eyeLandmarks[0].y - eyeLandmarks[3].y
+            );
+            
+            if (horizontal === 0) return 0;
+            const ear = (vertical1 + vertical2) / (2.0 * horizontal);
+            return ear;
+        }
+        
+        // Get eye landmarks from face mesh
+        function getEyeLandmarks(landmarks, indices) {
+            return indices.map(idx => landmarks[idx]);
+        }
+        
+        // Play alert sound using Web Audio API
+        function playAlertSound() {
+            if (alertPlaying) return;
+            
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                alertPlaying = true;
+                
+                // Create a beep sound
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 880; // A5 note
+                gainNode.gain.value = CONFIG.ALERT_SOUND_VOLUME;
+                
+                oscillator.start();
+                
+                // Stop after 0.5 seconds
+                setTimeout(() => {
+                    oscillator.stop();
+                    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.1);
+                    setTimeout(() => {
+                        alertPlaying = false;
+                    }, 200);
+                }, 500);
+                
+                // Resume audio context if suspended (browser policy)
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+            } catch (e) {
+                console.warn('Could not play alert sound:', e);
+                alertPlaying = false;
+            }
+        }
+        
+        // Stop alert sound
+        function stopAlertSound() {
+            // Web Audio API sounds are self-terminating
+            alertPlaying = false;
+        }
+
+        function playAlertSound2() {
+            if (alertPlaying) return;
+            
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                alertPlaying = true;
+                
+                // Create a beep sound
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.type = 'triangle'; 
+                oscillator.frequency.value = 1760; 
+                gainNode.gain.value = CONFIG.ALERT_SOUND_VOLUME;
+                
+                oscillator.start();
+                
+                // Stop after 0.5 seconds
+                setTimeout(() => {
+                    oscillator.stop();
+                    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.1);
+                    setTimeout(() => {
+                        alertPlaying = false;
+                    }, 200);
+                }, 200);
+                
+                // Resume audio context if suspended (browser policy)
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+            } catch (e) {
+                console.warn('Could not play alert sound:', e);
+                alertPlaying = false;
+            }
+        }
+        
+        // Update UI with alert
+        function showAlert(message, isDanger = true) {
+            alertBox.innerHTML = isDanger ? `⚠️ ${message} ⚠️` : `⚠️ ${message}`;
+            alertBox.className = `alert-area show ${isDanger ? 'danger' : 'warning'}`;
+            
+            // Auto-hide after 2 seconds if not drowsy
+            if (alertTimeout) clearTimeout(alertTimeout);
+            alertTimeout = setTimeout(() => {
+                if (closedFrames < CONFIG.FRAME_THRESHOLD) {
+                    alertBox.classList.remove('show');
+                }
+            }, 2000);
+        }
+        
+        function hideAlert() {
+            if (alertTimeout) clearTimeout(alertTimeout);
+            alertBox.classList.remove('show');
+        }
+        
+        // Process face mesh results
+        function onFaceMeshResults(results) {
+            // Clear canvas
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            if (!isRunning) {
+                canvasCtx.restore();
+                return;
+            }
+            
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const landmarks = results.multiFaceLandmarks[0];
+                
+                // Eye landmark indices according to MediaPipe FaceMesh
+                // Left eye indices: 33, 133, 155, 153, 144, 163, 7? 
+                // Standard MediaPipe indices for left eye: 33, 160, 158, 133, 153, 144
+                const leftEyeIndices = [33, 160, 158, 133, 153, 144];
+                // Right eye indices: 362, 385, 387, 263, 373, 380
+                const rightEyeIndices = [362, 385, 387, 263, 373, 380];
+                
+                // Get eye landmarks
+                const leftEyePoints = leftEyeIndices.map(idx => landmarks[idx]);
+                const rightEyePoints = rightEyeIndices.map(idx => landmarks[idx]);
+                
+                // Calculate EAR for both eyes
+                const leftEAR = calculateEAR(leftEyePoints);
+                const rightEAR = calculateEAR(rightEyePoints);
+                const avgEAR = (leftEAR + rightEAR) / 2;
+                
+                // Update UI with EAR values
+                leftEarSpan.textContent = leftEAR.toFixed(3);
+                rightEarSpan.textContent = rightEAR.toFixed(3);
+                avgEarSpan.textContent = avgEAR.toFixed(3);
+                
+                // Draw eye landmarks on canvas for visualization
+                canvasCtx.fillStyle = '#00ff00';
+                canvasCtx.strokeStyle = '#00ff00';
+                canvasCtx.lineWidth = 1;
+                
+                // Draw all face landmarks
+                for (let i = 0; i < landmarks.length; i++) {
+                    const x = landmarks[i].x * canvasElement.width;
+                    const y = landmarks[i].y * canvasElement.height;
+                    canvasCtx.fillRect(x - 1, y - 1, 2, 2);
+                }
+                
+                // Highlight eyes
+                canvasCtx.fillStyle = '#ffff00';
+                [...leftEyePoints, ...rightEyePoints].forEach(point => {
+                    const x = point.x * canvasElement.width;
+                    const y = point.y * canvasElement.height;
+                    canvasCtx.fillRect(x - 2, y - 2, 4, 4);
+                });
+                
+                // Drowsiness detection logic
+                if (avgEAR < CONFIG.EAR_THRESHOLD) {
+                    closedFrames++;
+                    counterSpan.textContent = closedFrames;
+                    
+                    // Update status based on frame count
+                    if (closedFrames >= CONFIG.FRAME_THRESHOLD) {
+                        // Critical drowsiness
+                        statusText.textContent = '⚠️ DROWSY - WAKE UP! ⚠️';
+                        statusText.className = 'status-value critical';
+                        showAlert('DROWSINESS DETECTED! Please take a break or wake up!', true);
+                        playAlertSound();
+                    } else if (closedFrames >= CONFIG.FRAME_THRESHOLD * 0.5) {
+                        // Warning stage
+                        statusText.textContent = 'GETTING SLEEPY';
+                        statusText.className = 'status-value drowsy';
+                        showAlert('Eyes closing - Stay alert!', false);
+                    } else {
+                        statusText.textContent = 'BLINKING';
+                        statusText.className = 'status-value drowsy';
+                    }
+                } else {
+                    // Eyes open - reset counter
+                    if (closedFrames >= CONFIG.FRAME_THRESHOLD) {
+                        // Just woke up from drowsy state
+                        showAlert('Status: AWAKE - Stay safe!', false);
+                        stopAlertSound();
+                        setTimeout(() => hideAlert(), 1500);
+                    }
+                    closedFrames = 0;
+                    counterSpan.textContent = closedFrames;
+                    statusText.textContent = 'AWAKE';
+                    statusText.className = 'status-value awake';
+                }
+            } else {
+                // No face detected
+                leftEarSpan.textContent = '0.000';
+                rightEarSpan.textContent = '0.000';
+                avgEarSpan.textContent = '0.000';
+                statusText.textContent = 'NO DVR DETECTED';
+                statusText.className = 'status-value';
+                closedFrames = 0;
+                counterSpan.textContent = closedFrames;
+                playAlertSound2();
+            }
+            
+            canvasCtx.restore();
+        }
+        
+        // Initialize MediaPipe FaceMesh
+        async function initFaceMesh() {
+            faceMesh = new FaceMesh({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+                }
+            });
+            
+            faceMesh.setOptions({
+                maxNumFaces: 1,
+                refineLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            
+            faceMesh.onResults(onFaceMeshResults);
+            
+            // Set canvas size to match video
+            function setCanvasSize() {
+                if (videoElement.videoWidth && videoElement.videoHeight) {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                } else {
+                    setTimeout(setCanvasSize, 100);
+                }
+            }
+            
+            videoElement.addEventListener('loadedmetadata', setCanvasSize);
+            
+            return true;
+        }
+        
+        // Start camera and detection
+        async function startDetection() {
+            try {
+                // Initialize FaceMesh if not already done
+                if (!faceMesh) {
+                    await initFaceMesh();
+                }
+                
+                // Start camera
+                camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        if (faceMesh && isRunning) {
+                            await faceMesh.send({ image: videoElement });
+                        }
+                    },
+                    width: 640,
+                    height: 480
+                });
+                
+                await camera.start();
+                isRunning = true;
+                
+                // Update button states
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                
+                // Reset state
+                closedFrames = 0;
+                counterSpan.textContent = '0';
+                hideAlert();
+                
+                console.log('Detection started successfully');
+                
+            } catch (error) {
+                console.error('Error starting detection:', error);
+                alert('Could not access camera. Please ensure you have granted camera permissions.');
+                isRunning = false;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        }
+        
+        // Stop detection
+        function stopDetection() {
+            if (camera) {
+                camera.stop();
+                camera = null;
+            }
+            
+            isRunning = false;
+            
+            // Clear canvas
+            if (canvasCtx) {
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            }
+            
+            // Reset UI
+            statusText.textContent = '⏸ STOPPED';
+            statusText.className = 'status-value';
+            leftEarSpan.textContent = '0.000';
+            rightEarSpan.textContent = '0.000';
+            avgEarSpan.textContent = '0.000';
+            counterSpan.textContent = '0';
+            closedFrames = 0;
+            hideAlert();
+            stopAlertSound();
+            
+            // Update buttons
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        }
+        
+        // Event listeners
+        startBtn.addEventListener('click', startDetection);
+        stopBtn.addEventListener('click', stopDetection);
+        
+        // Initialize audio context on first user interaction
+        function initAudioOnFirstClick() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            document.removeEventListener('click', initAudioOnFirstClick);
+        }
+        document.addEventListener('click', initAudioOnFirstClick);
+        
+        // Instructions
+        console.log('Drowsiness Detection System Ready');
+        console.log(`Configuration: EAR Threshold = ${CONFIG.EAR_THRESHOLD}, Frame Threshold = ${CONFIG.FRAME_THRESHOLD}`);
+    </script>
+</body>
+</html>
